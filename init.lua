@@ -101,6 +101,11 @@ do
   -- Set to true if you have a Nerd Font installed and selected in the terminal
   vim.g.have_nerd_font = true
 
+  vim.g.loaded_python3_provider = 0
+  vim.g.loaded_node_provider = 0
+  vim.g.loaded_perl_provider = 0
+  vim.g.loaded_ruby_provider = 0
+
   -- [[ Setting options ]]
   --  See `:help vim.o`
   -- NOTE: You can change these options as you wish!
@@ -434,7 +439,7 @@ do
   -- Load the colorscheme here.
   -- Like many other themes, this one has different styles, and you could load
   -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-  vim.cmd.colorscheme 'tokyonight-night'
+  vim.cmd.colorscheme 'delek'
 
   -- Highlight todo, notes, etc in comments
   vim.pack.add { gh 'folke/todo-comments.nvim' }
@@ -733,18 +738,14 @@ do
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
   local servers = {
-    -- clangd = {},
-    -- gopls = {},
-    -- pyright = {},
-    -- tsc = {},
-    --
-    -- Some languages (like rust) have entire language plugins that can be useful:
-    --    https://github.com/mrcjkb/rustaceanvim
-    --
-    -- But for many setups, the LSP (`rust_analyzer`) will work just fine
-    -- rust_analyzer = {},
-
+    basedpyright = {},
+    bashls = {},
+    clangd = {},
+    marksman = {},  -- Markdown: Links, Überschriften, Verweise
+    ruff = {},
+    --  sqls = {},  -- sqls hat zur Zeit 07.11.2026 eine Sicherheitsluecke.
     stylua = {}, -- Used to format Lua code
+    texlab = {}, -- LaTeX: Referenzen, Zitate, Befehle
 
     -- Special Lua Config, as recommended by neovim help docs
     lua_ls = {
@@ -804,6 +805,10 @@ do
   local ensure_installed = vim.tbl_keys(servers or {})
   vim.list_extend(ensure_installed, {
     -- You can add other tools here that you want Mason to install
+    'clang-format',
+    'shfmt',
+    'shellcheck',
+    'sql-formatter',
   })
 
   require('mason-tool-installer').setup { ensure_installed = ensure_installed }
@@ -812,6 +817,9 @@ do
     vim.lsp.config(name, server)
     vim.lsp.enable(name)
   end
+
+  -- rust_analyzer kommt von rustup, nicht von Mason
+  vim.lsp.enable 'rust_analyzer'
 end
 
 -- ============================================================
@@ -840,12 +848,14 @@ do
     },
     -- You can also specify external formatters in here.
     formatters_by_ft = {
-      -- rust = { 'rustfmt' },
-      -- Conform can also run multiple formatters sequentially
-      -- python = { "isort", "black" },
-      --
-      -- You can use 'stop_after_first' to run the first available formatter from the list
-      -- javascript = { "prettierd", "prettier", stop_after_first = true },
+      bash = { 'shfmt' },
+      c = { 'clang_format' },
+      cpp = { 'clang_format' },
+      python = { 'ruff_organize_imports', 'ruff_format' },
+      sh = { 'shfmt' },
+      sql = { 'sql_formatter' },
+      rust = { 'rustfmt' },
+      tex = { 'latexindent' },
     },
   }
 
@@ -948,7 +958,8 @@ do
   vim.pack.add { { src = gh 'nvim-treesitter/nvim-treesitter', version = 'main' } }
 
   -- Ensure basic parsers are installed
-  local parsers = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' }
+  local parsers =
+    { 'bash', 'c', 'cpp', 'commonlisp', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'python', 'query', 'rust', 'sql', 'vim', 'vimdoc' }
   require('nvim-treesitter').install(parsers)
 
   ---@param buf integer
@@ -983,6 +994,7 @@ do
 
       local language = vim.treesitter.language.get_lang(filetype)
       if not language then return end
+      if language == 'latex' then return end -- VimTeX uebernimmt die Syntax
 
       local installed_parsers = require('nvim-treesitter').get_installed 'parsers'
 
@@ -1024,6 +1036,8 @@ do
   --
   -- For independent modules, uncomment the convenience loader:
   -- require 'custom.plugins'
+  require 'custom.plugins.latex'
+  require 'custom.plugins.markdown'
   --
   -- `custom.plugins` automatically loads files from that directory, but their
   -- order is unspecified. If plugins depend on each other, keep them in the same
